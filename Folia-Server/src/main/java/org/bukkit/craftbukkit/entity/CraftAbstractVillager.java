@@ -1,0 +1,52 @@
+package org.bukkit.craftbukkit.entity;
+
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.trading.Merchant;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.inventory.CraftInventory;
+import org.bukkit.craftbukkit.inventory.CraftMerchant;
+import org.bukkit.entity.AbstractVillager;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+
+public class CraftAbstractVillager extends CraftAgeable implements CraftMerchant, AbstractVillager, InventoryHolder {
+
+    public CraftAbstractVillager(CraftServer server, net.minecraft.world.entity.npc.AbstractVillager entity) {
+        super(server, entity);
+    }
+
+    // Folia start - region threading
+    @Override
+    public net.minecraft.world.entity.npc.AbstractVillager getHandleRaw() {
+        return (net.minecraft.world.entity.npc.AbstractVillager)this.entity;
+    }
+    // Folia end - region threading
+
+    @Override
+    public net.minecraft.world.entity.npc.AbstractVillager getHandle() {
+        ca.spottedleaf.moonrise.common.util.TickThread.ensureTickThread(this.entity, "Accessing entity state off owning region's thread"); // Folia - region threading
+        return (Villager) this.entity;
+    }
+
+    @Override
+    public Merchant getMerchant() {
+        return this.getHandle();
+    }
+
+    @Override
+    public String toString() {
+        return "CraftAbstractVillager";
+    }
+
+    @Override
+    public Inventory getInventory() {
+        return new CraftInventory(this.getHandle().getInventory());
+    }
+
+    // Paper start - Villager#resetOffers
+    @Override
+    public void resetOffers() {
+        getHandle().resetOffers();
+    }
+    // Paper end - Villager#resetOffers
+}

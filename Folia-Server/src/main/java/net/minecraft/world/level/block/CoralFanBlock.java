@@ -1,0 +1,67 @@
+package net.minecraft.world.level.block;
+
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
+
+public class CoralFanBlock extends BaseCoralFanBlock {
+
+    public static final MapCodec<CoralFanBlock> CODEC = RecordCodecBuilder.mapCodec((instance) -> {
+        return instance.group(CoralBlock.DEAD_CORAL_FIELD.forGetter((blockcoralfan) -> {
+            return blockcoralfan.deadBlock;
+        }), propertiesCodec()).apply(instance, CoralFanBlock::new);
+    });
+    private final Block deadBlock;
+
+    @Override
+    public MapCodec<CoralFanBlock> codec() {
+        return CoralFanBlock.CODEC;
+    }
+
+    protected CoralFanBlock(Block deadCoralBlock, BlockBehaviour.Properties settings) {
+        super(settings);
+        this.deadBlock = deadCoralBlock;
+    }
+
+    @Override
+    protected void onPlace(BlockState state, Level world, BlockPos pos, BlockState oldState, boolean notify) {
+        this.tryScheduleDieTick(state, world, world, world.random, pos);
+    }
+
+    @Override
+    protected void tick(BlockState state, ServerLevel world, BlockPos pos, RandomSource random) {
+        if (!scanForWater(state, world, pos)) {
+            // CraftBukkit start
+            if (org.bukkit.craftbukkit.event.CraftEventFactory.callBlockFadeEvent(world, pos, this.deadBlock.defaultBlockState().setValue(CoralFanBlock.WATERLOGGED, false)).isCancelled()) {
+                return;
+            }
+            // CraftBukkit end
+            world.setBlock(pos, (BlockState) this.deadBlock.defaultBlockState().setValue(CoralFanBlock.WATERLOGGED, false), 2);
+        }
+
+    }
+
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess tickView, BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
+        if (direction == Direction.DOWN && !state.canSurvive(world, pos)) {
+            return Blocks.AIR.defaultBlockState();
+        } else {
+            this.tryScheduleDieTick(state, world, tickView, random, pos);
+            if ((Boolean) state.getValue(CoralFanBlock.WATERLOGGED)) {
+                tickView.scheduleTick(pos, (Fluid) Fluids.WATER, Fluids.WATER.getTickDelay(world));
+            }
+
+            return super.updateShape(state, world, tickView, pos, direction, neighborPos, neighborState, random);
+        }
+    }
+}
